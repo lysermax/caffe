@@ -14,6 +14,7 @@ class Solver {
   // The main entry of the solver function. In default, iter will be zero. Pass
   // in a non-zero iter number to resume training for a pre-trained net.
   virtual void Solve(const char* resume_file = NULL);
+  virtual void Visuallize(const char* resume_file = NULL);
   inline void Solve(const string resume_file) { Solve(resume_file.c_str()); }
   virtual ~Solver() {}
   inline Net<Dtype>* net() { return net_.get(); }
@@ -40,7 +41,7 @@ class Solver {
 
   SolverParameter param_;
   int iter_;
-  shared_ptr<Net<Dtype> > net_;
+  shared_ptr<Net<Dtype> > net_;     //solverºÍnetñîºÏÁË
   shared_ptr<Net<Dtype> > test_net_;
 
   DISABLE_COPY_AND_ASSIGN(Solver);

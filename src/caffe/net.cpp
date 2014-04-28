@@ -4,7 +4,6 @@
 #include <set>
 #include <string>
 #include <vector>
-#include <iostream>
 #include <fstream>
 
 #include "caffe/proto/caffe.pb.h"
@@ -15,7 +14,6 @@
 using std::pair;
 using std::map;
 using std::set;
-using std::ofstream;
 
 namespace caffe {
 
@@ -35,7 +33,8 @@ template <typename Dtype>
 void Net<Dtype>::Init(const NetParameter& param) {
   // Basically, build all the layers and set up its connections.
   name_ = param.name();
-  map<string, int> blob_name_to_idx;
+  map<string, int> blob_name_to_idx; // 数据name与blob中idx的对应关系
+
   set<string> available_blobs;
   int num_layers = param.layers_size();
   CHECK_EQ(param.input_size() * 4, param.input_dim_size())
@@ -70,7 +69,7 @@ void Net<Dtype>::Init(const NetParameter& param) {
     bool need_backward = param.force_backward();
     // Figure out this layer's input and output
     for (int j = 0; j < layer_connection.bottom_size(); ++j) {
-      const string& blob_name = layer_connection.bottom(j);
+      const string& blob_name = layer_connection.bottom(j);  //读入名称
       const int blob_id = blob_name_to_idx[blob_name];
       if (available_blobs.find(blob_name) == available_blobs.end()) {
         LOG(FATAL) << "Unknown blob input " << blob_name <<
@@ -78,24 +77,27 @@ void Net<Dtype>::Init(const NetParameter& param) {
       }
       LOG(INFO) << layer_param.name() << " <- " << blob_name;
       bottom_vecs_[i].push_back(
-          blobs_[blob_id].get());
+          blobs_[blob_id].get()); //从blob中读取
       bottom_id_vecs_[i].push_back(blob_id);
       // If a blob needs backward, this layer should provide it.
       need_backward |= blob_need_backward_[blob_id];
       available_blobs.erase(blob_name);
     }
-    for (int j = 0; j < layer_connection.top_size(); ++j) {
+    for (int j = 0; j < layer_connection.top_size(); ++j) 
+	{
       const string& blob_name = layer_connection.top(j);
       // Check if we are doing in-place computation
       if (layer_connection.bottom_size() > j &&
           blob_name == layer_connection.bottom(j)) {
         // In-place computation
         LOG(INFO) << layer_param.name() << " -> " << blob_name << " (in-place)";
-        available_blobs.insert(blob_name);
+        available_blobs.insert(blob_name); //关键
         top_vecs_[i].push_back(
             blobs_[blob_name_to_idx[blob_name]].get());
         top_id_vecs_[i].push_back(blob_name_to_idx[blob_name]);
-      } else if (blob_name_to_idx.find(blob_name) != blob_name_to_idx.end()) {
+      } 
+	  else if (blob_name_to_idx.find(blob_name) != blob_name_to_idx.end()) 
+	  {
         // If we are not doing in-place computation but has duplicated blobs,
         // raise an error.
         LOG(FATAL) << "Duplicate blobs produced by multiple sources.";
@@ -113,7 +115,8 @@ void Net<Dtype>::Init(const NetParameter& param) {
       }
     }
     // After this layer is connected, set it up.
-    //LOG(INFO) << "Setting up " << layer_names_[i];
+    LOG(INFO) << "Setting up " << layer_names_[i];
+	// 加载网络训练数据
     layers_[i]->SetUp(bottom_vecs_[i], &(top_vecs_[i]));
     for (int topid = 0; topid < top_vecs_[i].size(); ++topid) {
       LOG(INFO) << "Top shape: " << top_vecs_[i][topid]->channels() << " "
@@ -142,6 +145,22 @@ void Net<Dtype>::Init(const NetParameter& param) {
     net_output_blobs_.push_back(blobs_[blob_name_to_idx[*it]].get());
   }
   GetLearningRateAndWeightDecay();
+
+  // init visualize layer
+  layeredmax_response.resize(param.layers_size());
+  // omited the first data layer and the last loss layer
+  int iheight = bottom_vecs_[1][0]->height();
+  int iwidth = bottom_vecs_[1][0]->width();
+  int ichannel = bottom_vecs_[1][0]->channels();
+  for (int i = 1; i < param.layers_size() - 1; i++)
+  {
+	  layeredmax_response[i].resize(top_vecs_[i][0]->channels());
+	  for(int j = 0; j < layeredmax_response[i].size(); j++)
+	  {
+		  layeredmax_response[i][j].resize(9);
+	  }
+  }
+  m_echo = 0;
   LOG(INFO) << "Network initialization done.";
 }
 
@@ -190,6 +209,20 @@ const vector<Blob<Dtype>*>& Net<Dtype>::ForwardPrefilled() {
     // LOG(ERROR) << "Forwarding " << layer_names_[i];
     layers_[i]->Forward(bottom_vecs_[i], &top_vecs_[i]);
   }
+  return net_output_blobs_;
+}
+
+
+template <typename Dtype>
+const vector<Blob<Dtype>*>& Net<Dtype>::ForwardAndMemoryMaxResponse()
+{
+	  for (int i = 0; i < layers_.size(); ++i) {
+      // LOG(ERROR) << "Forwarding " << layer_names_[i];
+      layers_[i]->Forward(bottom_vecs_[i], &top_vecs_[i]);
+  }
+  // Compute the max response value
+  
+
   return net_output_blobs_;
 }
 
@@ -242,10 +275,6 @@ Dtype Net<Dtype>::Backward() {
 template <typename Dtype>
 void Net<Dtype>::CopyTrainedLayersFrom(const NetParameter& param) {
   int num_source_layers = param.layers_size();
-  // // save pipeline
-  // ofstream outputFile;
-  // string filename = "Pipeline";
-  // outputFile.open (filename);
   for (int i = 0; i < num_source_layers; ++i) {
     const LayerParameter& source_layer = param.layers(i).layer();
     const string& source_layer_name = source_layer.name();
@@ -258,39 +287,21 @@ void Net<Dtype>::CopyTrainedLayersFrom(const NetParameter& param) {
       DLOG(INFO) << "Ignoring source layer " << source_layer_name;
       continue;
     }
-	// //save pipeline
-	// outputFile<<source_layer.name()<<endl;
-  DLOG(INFO) << "Copying source layer " << source_layer_name;
-  vector<shared_ptr<Blob<Dtype> > >& target_blobs =
-      layers_[target_layer_id]->blobs();
-  CHECK_EQ(target_blobs.size(), source_layer.blobs_size())
-      << "Incompatible number of blobs for layer " << source_layer_name;
-  for (int j = 0; j < target_blobs.size(); ++j) {
-    CHECK_EQ(target_blobs[j]->num(), source_layer.blobs(j).num());
-    CHECK_EQ(target_blobs[j]->channels(), source_layer.blobs(j).channels());
-    CHECK_EQ(target_blobs[j]->height(), source_layer.blobs(j).height());
-    CHECK_EQ(target_blobs[j]->width(), source_layer.blobs(j).width());
-    target_blobs[j]->FromProto(source_layer.blobs(j));
-	 // // save data
-	 // ofstream outputFile;
-	 // string filename = source_layer.name()+"_Blob"+std::to_string(j);
-	 // outputFile.open (filename);
-	 // int num = source_layer.blobs(j).num();
-	 // int channels = source_layer.blobs(j).channels();
-	 // int height = source_layer.blobs(j).height();
-	 // int width = source_layer.blobs(j).width();
-	 // outputFile <<num<<std::endl;
-	 // outputFile <<channels<<std::endl;
-	 // outputFile <<height<<std::endl;
-	 // outputFile <<width<<std::endl;
-	 // int count = num*channels*height*width;
-	 // for (int i = 0; i < count; ++i) {
-		//outputFile<<source_layer.blobs(j).data(i)<<std::endl;
-	 // }
-	 // outputFile.close();
+    DLOG(INFO) << "Copying source layer " << source_layer_name;
+    vector<shared_ptr<Blob<Dtype> > >& target_blobs =
+        layers_[target_layer_id]->blobs();
+    CHECK_EQ(target_blobs.size(), source_layer.blobs_size())
+        << "Incompatible number of blobs for layer " << source_layer_name;
+    for (int j = 0; j < target_blobs.size(); ++j) 
+	{
+      CHECK_EQ(target_blobs[j]->num(), source_layer.blobs(j).num());
+      CHECK_EQ(target_blobs[j]->channels(), source_layer.blobs(j).channels());
+      CHECK_EQ(target_blobs[j]->height(), source_layer.blobs(j).height());
+      CHECK_EQ(target_blobs[j]->width(), source_layer.blobs(j).width());
+      target_blobs[j]->FromProto(source_layer.blobs(j));
     }
+
   }
-  // outputFile.close();
 }
 
 template <typename Dtype>
@@ -328,6 +339,175 @@ void Net<Dtype>::Update() {
     params_[i]->Update();
   }
 }
+
+template <typename Dtype>
+int Net<Dtype>::dumpMaxResponseMaptoFile(const string& path)
+{
+	for (int i = 1; i < layeredmax_response.size() - 1; i++)
+    {
+		 ofstream outputMax;
+		 string maxfilename = path + layer_names_[i] + "_MaxResponse"  + ".txt";
+		 outputMax.open (maxfilename);
+		 for (int r = 0; r < layeredmax_response[i].size(); r++)
+		 {
+			 for (int j = 0; j < 9; j++)
+			 {
+				 outputMax<<layeredmax_response[i][r][j].maxResponse<<endl;
+				 outputMax<<layeredmax_response[i][r][j].echoindex<<endl;
+				 outputMax<<layeredmax_response[i][r][j].imageindex<<endl;
+				 outputMax<<layeredmax_response[i][r][j].innerindex<<endl;
+				 if (layeredmax_response[i][r][j].imageData != NULL)
+				 {
+					 ofstream outputFile;
+					 string filename = layer_names_[i] + "_Visual" + std::to_string(r) 
+						 + "_" + std::to_string(i) +  ".txt";
+					 outputFile.open (filename);
+					 const Dtype* imagedata = bottom_vecs_[1][0]->cpu_diff() + bottom_vecs_[1][0]->offset(j);
+					 int icount = bottom_vecs_[1][0]->channels() * bottom_vecs_[1][0]->height() 
+						 * bottom_vecs_[1][0]->width();
+
+					 memcpy(layeredmax_response[i][r][j].imageData, imagedata, icount * sizeof(Dtype));
+					 for (int n = 0; n < icount; n++)
+					 {
+						 outputFile<<imagedata[n]<<std::endl;
+					 }
+					 outputFile.close();
+				 }// end if
+			 }// end of image j
+		 }// end of channel r
+		 outputMax.close();
+	}// end of layer i
+	return 1;
+}
+
+template <typename Dtype>
+int Net<Dtype>::dumpVisualDatatoFile(const string& path)
+{
+	for (int i = 1; i < layeredmax_response.size() - 1; i++)
+	{
+		for (int r = 0; r < layeredmax_response[i].size(); r++)
+		{
+			for (int j = 0; j < 9; j++)
+			{
+				if (layeredmax_response[i][r][j].imageData != NULL)
+				{
+					ofstream outputFile;
+					string filename = layer_names_[i] + "_Visual" + std::to_string(r) 
+						+ "_" + std::to_string(j) +  ".txt";
+					outputFile.open (filename);
+					Dtype* imagedata = layeredmax_response[i][r][j].imageData;
+					int icount = bottom_vecs_[1][0]->channels() * bottom_vecs_[1][0]->height() 
+						* bottom_vecs_[1][0]->width();
+					double sum = 0.0;
+					for (int n = 0; n < icount; n++)
+					{
+						outputFile<<imagedata[n]<<std::endl;
+						sum += imagedata[n];
+					}
+					outputFile.close();
+				}// end if
+			}// end of image j
+		}// end of channel r
+	}// end of layer i
+	return 1;
+}
+
+template <typename Dtype>
+void Net<Dtype>::UpdateMaxResponse()
+{
+	// update the max response layer by layer
+	for (int i = 1; i < layers_.size() - 1; i++)
+	{
+		// calculate the max response
+		int inum = top_vecs_[i][0]->num();
+		int ichannel = top_vecs_[i][0]->channels();
+		Dtype* maxResponse = new Dtype[inum * ichannel *2];
+		top_vecs_[i][0]->MaxofResponseMap_cpu(maxResponse);
+		// set the max response 
+		for(int j = 0; j < inum; j++)
+		{
+			//依次更新response map
+			for (int r = 0; r < ichannel;  r++)
+			{
+				/*更新layermaxresponse的[i][r]，
+				 和[i][r][8]比较并更新*/
+				if(maxResponse[j*ichannel*2 + r*2] > layeredmax_response[i][r][8].maxResponse)
+				{
+					layeredmax_response[i][r][8].maxResponse = maxResponse[j*ichannel*2 + r*2];
+					layeredmax_response[i][r][8].imageindex = j;
+					layeredmax_response[i][r][8].echoindex = m_echo;
+					layeredmax_response[i][r][8].innerindex = static_cast<int>(maxResponse[j*ichannel*2 + r*2 +1]);
+				}
+				// 重新排序
+				sort( layeredmax_response[i][r].begin(),  layeredmax_response[i][r].end(), SortCompare<Dtype>);
+			}
+		}
+		delete[] maxResponse;
+	}
+}
+
+
+
+// 可视化网络指定层的所有response map
+template <typename Dtype>
+void Net<Dtype>::VisualizeNetwork(int layer, int channel)
+{
+	if(m_echo == 0)
+	{
+		for (int n = 0; n < 9; n++)
+		{
+			layeredmax_response[layer][channel][n].imageData = 
+				new Dtype[bottom_vecs_[1][0]->channels() * bottom_vecs_[1][0]->height() 
+				* bottom_vecs_[1][0]->width()];
+		}
+	}
+	
+	/*只保留对应channel的极大值到diffmap，
+	  需保持输入图片的顺序。
+	*/
+	for (int i = 0; i < 9; i++)
+	{
+		if (layeredmax_response[layer][channel][i].echoindex == m_echo)
+		{
+			top_vecs_[layer][0]-> ClearDiffMap_cpu(layeredmax_response[layer][channel][i].imageindex);
+			top_vecs_[layer][0]->SetMaxResponse_cpu(layeredmax_response[layer][channel][i].maxResponse,
+				layeredmax_response[layer][channel][i].imageindex, channel, 
+				layeredmax_response[layer][channel][i].innerindex);
+		}
+	}
+
+	// BP to the first layer
+	for (int i = layer; i >= 1; --i) {
+			Dtype layer_loss = layers_[i]->Backward(
+				top_vecs_[i], true, &bottom_vecs_[i]); // the loss does not need store
+	}
+
+	 // Save the data of input layer diff map at this echo
+	for (int i = 0; i < 9; i++)
+	{
+		// 只update当前echo的visuallized data
+		if (layeredmax_response[layer][channel][i].echoindex == m_echo)
+		{
+			int  offsetIndex = layeredmax_response[layer][channel][i].imageindex;
+			const Dtype* imagedata = bottom_vecs_[1][0]->cpu_diff() + bottom_vecs_[1][0]->offset(offsetIndex);
+			int icount = bottom_vecs_[1][0]->channels() * bottom_vecs_[1][0]->height() 
+				* bottom_vecs_[1][0]->width();
+			memcpy(layeredmax_response[layer][channel][i].imageData, imagedata, icount * sizeof(Dtype));
+		}
+	}
+}
+
+template <typename Dtype>
+void Net<Dtype>::VisualizeNetwork(int layer)
+{
+	// 可视化指定层的所有layer
+	for (int r = 0; r < layeredmax_response[layer].size(); r++)
+	{
+		VisualizeNetwork(layer, r);
+	}
+}
+
+
 
 INSTANTIATE_CLASS(Net);
 

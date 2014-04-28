@@ -23,10 +23,11 @@ Solver<Dtype>::Solver(const SolverParameter& param)
   // Scaffolding code
   NetParameter train_net_param;
   ReadProtoFromTextFile(param_.train_net(), &train_net_param);
-  LOG(INFO) << "Creating training net.";
+  //LOG(INFO) << "Creating training net.";
+  // ³õÊ¼»¯net
   net_.reset(new Net<Dtype>(train_net_param));
   if (param_.has_test_net()) {
-    LOG(INFO) << "Creating testing net.";
+    //LOG(INFO) << "Creating testing net.";
     NetParameter test_net_param;
     ReadProtoFromTextFile(param_.test_net(), &test_net_param);
     test_net_.reset(new Net<Dtype>(test_net_param));
@@ -57,7 +58,7 @@ void Solver<Dtype>::Solve(const char* resume_file) {
   // should be given, and we will just provide dummy vecs.
   vector<Blob<Dtype>*> bottom_vec;
   while (iter_++ < param_.max_iter()) {
-    Dtype loss = net_->ForwardBackward(bottom_vec);
+    Dtype loss = net_->ForwardBackward(bottom_vec); // get loss
     ComputeUpdateValue();
     net_->Update();
 
@@ -80,6 +81,36 @@ void Solver<Dtype>::Solve(const char* resume_file) {
   Snapshot();
   LOG(INFO) << "Optimization Done.";
 }
+
+
+template <typename Dtype>
+void Solver<Dtype>::Visuallize(const char* resume_file) {
+	Caffe::set_mode(Caffe::Brew(param_.solver_mode()));
+	if (param_.solver_mode() && param_.has_device_id()) {
+		Caffe::SetDevice(param_.device_id());
+	}
+	Caffe::set_phase(Caffe::TRAIN);
+	LOG(INFO) << "Solving " << net_->name();
+	PreSolve();
+
+	iter_ = 0;
+	if (resume_file) {
+		LOG(INFO) << "Restoring previous solver status from " << resume_file;
+		Restore(resume_file);
+	}
+
+	// For a network that is trained by the solver, no bottom or top vecs
+	// should be given, and we will just provide dummy vecs.
+	vector<Blob<Dtype>*> bottom_vec;
+	while (iter_++ < param_.max_iter()) {
+		net_->ForwardAndVisualize(bottom_vec); 
+		net_->dumpVisualDatatoFile("");
+	}
+	// After the optimization is done, always do a snapshot.
+	iter_--;
+	LOG(INFO) << "Visualization Done.";
+}
+
 
 
 template <typename Dtype>

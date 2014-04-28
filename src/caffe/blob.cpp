@@ -177,6 +177,60 @@ void Blob<Dtype>::ToProto(BlobProto* proto, bool write_diff) const {
   }
 }
 
+
+// find max value
+template <typename Dtype>
+Dtype Blob<Dtype>::GetMaxValue(const Dtype* array, int num, int& index)
+{
+	Dtype maxvalue = array[0];
+	index = 0;
+	for(int i = 1; i < num; i++)
+	{
+		if (array[i] > maxvalue)
+		{
+			maxvalue = array[i];
+			index = i;
+		}
+	}
+	return maxvalue;
+}
+
+ // maxValue must be preallocated to the size of num * channel
+template <typename Dtype>
+void Blob<Dtype>:: MaxofResponseMap_cpu(Dtype* maxResponse)
+{
+	  // get data
+	  const Dtype* response_map = cpu_data();
+	  // calc each response map one by one
+	  for(int i = 0; i < num_; i++)
+	  {
+		  for (int j = 0; j < channels_; j++)
+		  {
+			  int index;
+			  maxResponse[i*channels_*2 + j*2] = GetMaxValue(response_map + offset(i, j),  height_ * width_, index);
+			  maxResponse[i*channels_*2 + j*2 +1] = static_cast<Dtype>(index);
+		  }
+	  }
+}
+
+ // reserve max response value to 1 and all the other value to 0
+template <typename Dtype>
+void Blob<Dtype>::SetMaxResponse_cpu(Dtype maxResponse, int num, int channel, int index)
+{
+	 // get diff data
+	 Dtype* diff_map = mutable_cpu_diff();
+	 // set the max response value
+	 diff_map[offset(num, channel) + index] = maxResponse;
+}
+
+template <typename Dtype>
+void Blob<Dtype>::ClearDiffMap_cpu(int num)
+{
+    // get diff data
+	 Dtype* diff_map = mutable_cpu_diff();
+	 memset(diff_map + offset(num), 0, channels_ * height_ * width_);
+}
+
 INSTANTIATE_CLASS(Blob);
 
 }  // namespace caffe

@@ -18,6 +18,31 @@ using std::string;
 
 namespace caffe {
 
+template<typename Dtype>
+struct MaxResonseStruct
+{
+	MaxResonseStruct()
+	{
+		maxResponse = static_cast<Dtype>(0.0f);
+		echoindex = 0;
+		imageindex = 0;
+		innerindex = 0;
+		imageData = NULL;
+	}
+	Dtype maxResponse;
+	int echoindex;
+	int imageindex;
+	int innerindex;
+	Dtype* imageData;
+};
+
+// 写一个比较函数
+template<typename Dtype>
+inline bool SortCompare(const MaxResonseStruct<Dtype>& ms1, const MaxResonseStruct<Dtype>& ms2)
+{
+	return ms1.maxResponse > ms2.maxResponse;
+}
+
 
 template <typename Dtype>
 class Net {
@@ -32,6 +57,9 @@ class Net {
   // Run forward with the input blobs already fed separately. You can get the
   // input blobs using input_blobs().
   const vector<Blob<Dtype>*>& ForwardPrefilled();
+
+  const vector<Blob<Dtype>*>& ForwardAndMemoryMaxResponse();
+
   // Run forward using a set of bottom blobs, and return the result.
   const vector<Blob<Dtype>*>& Forward(const vector<Blob<Dtype>* > & bottom);
   // Run forward using a serialized BlobProtoVector and return the result
@@ -83,6 +111,24 @@ class Net {
   inline vector<Blob<Dtype>*>& input_blobs() { return net_input_blobs_; }
   inline vector<Blob<Dtype>*>& output_blobs() { return net_output_blobs_; }
 
+  // 将max response结构存储到文件
+  int dumpMaxResponseMaptoFile(const string& path);
+  // 将可视化的数据存储到文件
+  int dumpVisualDatatoFile(const string& path);
+  // 更新max response
+  void UpdateMaxResponse();
+  // 可视化网络
+  void VisualizeNetwork(int layer, int ichannel); //可视化指定层的ichannel
+  void VisualizeNetwork(int layer); //可视化指定层的所有channel
+  
+ void ForwardAndVisualize(const vector<Blob<Dtype>* > & bottom) {
+	  Forward(bottom);
+	  UpdateMaxResponse();
+	  VisualizeNetwork(6, 0);
+	  m_echo++;
+  }
+
+
  protected:
   // Function to get misc parameters, e.g. the learning rate multiplier and
   // weight decay.
@@ -94,16 +140,16 @@ class Net {
   vector<bool> layer_need_backward_;
   // blobs stores the blobs that store intermediate results between the
   // layers.
-  vector<shared_ptr<Blob<Dtype> > > blobs_;
-  vector<string> blob_names_;
+  vector<shared_ptr<Blob<Dtype> > > blobs_; //存储网络公共数据，data,label这些
+  vector<string> blob_names_; //数据层名称
   vector<bool> blob_need_backward_;
   // bottom_vecs stores the vectors containing the input for each layer.
   // They don't actually host the blobs (blobs_ does), so we simply store
   // pointers.
-  vector<vector<Blob<Dtype>*> > bottom_vecs_;
+  vector<vector<Blob<Dtype>*> > bottom_vecs_; // store pointer only
   vector<vector<int> > bottom_id_vecs_;
   // top_vecs stores the vectors containing the output for each layer
-  vector<vector<Blob<Dtype>*> > top_vecs_;
+  vector<vector<Blob<Dtype>*> > top_vecs_; // store pointer only
   vector<vector<int> > top_id_vecs_;
   // blob indices for the input and the output of the net
   vector<int> net_input_blob_indices_;
@@ -111,12 +157,17 @@ class Net {
   vector<Blob<Dtype>*> net_output_blobs_;
   string name_;
   // The parameters in the network.
-  vector<shared_ptr<Blob<Dtype> > > params_;
+  vector<shared_ptr<Blob<Dtype> > > params_; // 这个params_保存的是所有网络参数
   // the learning rate multipliers
   vector<float> params_lr_;
   // the weight decay multipliers
   vector<float> params_weight_decay_;
   DISABLE_COPY_AND_ASSIGN(Net);
+
+  // Visualize功能支持
+  vector<vector<vector<MaxResonseStruct<Dtype>> > > layeredmax_response;
+  int m_echo;
+
 };
 
 
