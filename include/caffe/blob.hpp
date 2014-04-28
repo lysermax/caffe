@@ -20,15 +20,13 @@ class Blob {
   virtual ~Blob() {}
   void Reshape(const int num, const int height,
       const int width, const int channels);
-
   inline int num() const { return num_; }
   inline int channels() const { return channels_; }
   inline int height() const { return height_; }
   inline int width() const { return width_; }
   inline int count() const {return count_; }
   inline int offset(const int n, const int c = 0, const int h = 0,
-      const int w = 0) const 
-  {
+      const int w = 0) const {
     return ((n * channels_ + c) * height_ + h) * width_ + w;
   }
   // Copy from source. If copy_diff is false, we copy the data; if copy_diff
@@ -58,13 +56,6 @@ class Blob {
   void FromProto(const BlobProto& proto);
   void ToProto(BlobProto* proto, bool write_diff = false) const;
 
-   // maxValue must be preallocated to the size of num_ * channel_
-  void MaxofResponseMap_cpu(Dtype* maxResponse);
-  // set max response value to 1 and all the other value to 0
-  void SetMaxResponse_cpu(Dtype maxResponse, int num, int channel, int index);
-  // clear the n-th image's all diff maps to 0
-  void ClearDiffMap_cpu(int num);
-
  protected:
   shared_ptr<SyncedMemory> data_;
   shared_ptr<SyncedMemory> diff_;
@@ -73,8 +64,6 @@ class Blob {
   int height_;
   int width_;
   int count_;
-
-  Dtype GetMaxValue(const Dtype* array, int num, int& index);
 
   DISABLE_COPY_AND_ASSIGN(Blob);
 };  // class Blob
