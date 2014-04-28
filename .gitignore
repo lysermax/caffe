@@ -32,6 +32,9 @@
 # anything under data/ unless we force include them
 data/*
 
+# anything under /build/MSVC/Debug 
+/build/MSVC/Debug*
+
 # anything under distribute
 distribute/*
 3rdparty/*
