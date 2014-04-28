@@ -228,7 +228,7 @@ void Blob<Dtype>::ClearDiffMap_cpu(int num)
 {
     // get diff data
 	 Dtype* diff_map = mutable_cpu_diff();
-	 memset(diff_map + offset(num), 0, channels_ * height_ * width_);
+	 memset(diff_map + offset(num), 0, sizeof(Dtype) * channels_ * height_ * width_);
 }
 
 INSTANTIATE_CLASS(Blob);
