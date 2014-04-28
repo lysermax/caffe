@@ -242,10 +242,10 @@ Dtype Net<Dtype>::Backward() {
 template <typename Dtype>
 void Net<Dtype>::CopyTrainedLayersFrom(const NetParameter& param) {
   int num_source_layers = param.layers_size();
-	  // save pipeline
-	 ofstream outputFile;
-	 string filename = "Pipeline";
-	 outputFile.open (filename);
+  // // save pipeline
+  // ofstream outputFile;
+  // string filename = "Pipeline";
+  // outputFile.open (filename);
   for (int i = 0; i < num_source_layers; ++i) {
     const LayerParameter& source_layer = param.layers(i).layer();
     const string& source_layer_name = source_layer.name();
@@ -258,19 +258,19 @@ void Net<Dtype>::CopyTrainedLayersFrom(const NetParameter& param) {
       DLOG(INFO) << "Ignoring source layer " << source_layer_name;
       continue;
     }
-	//save pipeline
-	outputFile<<source_layer.name()<<endl;
-    DLOG(INFO) << "Copying source layer " << source_layer_name;
-    vector<shared_ptr<Blob<Dtype> > >& target_blobs =
-        layers_[target_layer_id]->blobs();
-    CHECK_EQ(target_blobs.size(), source_layer.blobs_size())
-        << "Incompatible number of blobs for layer " << source_layer_name;
-    for (int j = 0; j < target_blobs.size(); ++j) {
-      CHECK_EQ(target_blobs[j]->num(), source_layer.blobs(j).num());
-      CHECK_EQ(target_blobs[j]->channels(), source_layer.blobs(j).channels());
-      CHECK_EQ(target_blobs[j]->height(), source_layer.blobs(j).height());
-      CHECK_EQ(target_blobs[j]->width(), source_layer.blobs(j).width());
-      target_blobs[j]->FromProto(source_layer.blobs(j));
+	// //save pipeline
+	// outputFile<<source_layer.name()<<endl;
+  DLOG(INFO) << "Copying source layer " << source_layer_name;
+  vector<shared_ptr<Blob<Dtype> > >& target_blobs =
+      layers_[target_layer_id]->blobs();
+  CHECK_EQ(target_blobs.size(), source_layer.blobs_size())
+      << "Incompatible number of blobs for layer " << source_layer_name;
+  for (int j = 0; j < target_blobs.size(); ++j) {
+    CHECK_EQ(target_blobs[j]->num(), source_layer.blobs(j).num());
+    CHECK_EQ(target_blobs[j]->channels(), source_layer.blobs(j).channels());
+    CHECK_EQ(target_blobs[j]->height(), source_layer.blobs(j).height());
+    CHECK_EQ(target_blobs[j]->width(), source_layer.blobs(j).width());
+    target_blobs[j]->FromProto(source_layer.blobs(j));
 	 // // save data
 	 // ofstream outputFile;
 	 // string filename = source_layer.name()+"_Blob"+std::to_string(j);
@@ -290,7 +290,7 @@ void Net<Dtype>::CopyTrainedLayersFrom(const NetParameter& param) {
 	 // outputFile.close();
     }
   }
-  outputFile.close();
+  // outputFile.close();
 }
 
 template <typename Dtype>
