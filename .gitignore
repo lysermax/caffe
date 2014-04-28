@@ -5,6 +5,11 @@
 *.cuo
 *.pyc
 
+# VS2012 temp file
+*.sdf
+*.suo
+*.pdb
+
 # Compiled Dynamic libraries
 *.so
 *.dylib
@@ -34,6 +39,15 @@ data/*
 
 # anything under /build/MSVC/Debug 
 /build/MSVC/Debug*
+
+# anything under /bin
+/bin/*
+
+# anything under /build/src
+/build/src/*
+
+# anything under /tools/
+/tools/*
 
 # anything under distribute
 distribute/*
