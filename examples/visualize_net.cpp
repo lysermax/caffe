@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
   SGDSolver<float> solver(solver_param);
   LOG(INFO) << "Loading from " << argv[2];
   solver.net()->CopyTrainedLayersFrom(string(argv[2]));
-  solver.Solve();
+  solver.Visuallize();
   LOG(INFO) << "Optimization Done.";
 
   return 0;
